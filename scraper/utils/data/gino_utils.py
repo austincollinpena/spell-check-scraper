@@ -4,8 +4,9 @@ from scraper import config
 
 
 async def init_db():
-    engine = await gino_db.set_bind(config.DB_DSN, echo=True)
-    domain = await Domain.query.where(Domain.domain == 'http://equipomedia.com')
+    engine = await gino_db.set_bind(config.DB_DSN)
+    domain = await Domain.query.where(Domain.domain == 'http://equipomedia.com').gino.first()
+    domain
 
 
 async def get_list_of_domains():

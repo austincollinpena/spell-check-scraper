@@ -14,7 +14,7 @@ async def extract_and_queue_local_links(soup, root_domain: str, redis):
         try:
             valid_links.append(urljoin(url, urlparse(url).path))
         except Exception as e:
-            await logging.warning(f'Failed at extracting {url}', exc_info=True)
+            logging.warning(f'Failed at extracting {url}', exc_info=True)
 
     for link in valid_links:
         # STOP anything from wp-content, .png, .jpg, or others

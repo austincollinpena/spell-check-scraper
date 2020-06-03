@@ -25,9 +25,7 @@ async def parse_page(redis, url: str, session) -> None:
         wrong_words = await check_if_spelled_right(redis, words=visible_words)
         current_netloc = urlparse(url).netloc
         # try:
-
-
-        domain = await Domain.query.where(Domain.domain == f'http://{current_netloc}').gino().first()
+        domain = await Domain.query.where(Domain.domain == f'http://{current_netloc}').gino.first()
 
         await Page.create(
             page=url,
@@ -68,7 +66,7 @@ async def get_multiple_pages(loop):
             while await redis.scard('pagestobecrawled:queue') > 0:
                 open_spots_for_domains = 200 - await redis.scard('domainbeingcrawled:active')
                 # TODO: This loop seems to get stuck
-                if open_spots_for_domains < 200:
+                if open_spots_for_domains <= 200:
                     # TODO: Add the number of tasks to get to 200
                     print('fewer open spots')
                     if await redis.scard('pagestobecrawled:queue') == 0:
