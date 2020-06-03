@@ -13,6 +13,7 @@ from db.models import Domain, Page
 from db import gino_db
 from utils.scraping.random_proxy import random_proxy
 from scraper import config
+import logging
 
 
 async def parse_page(redis, url: str, session) -> None:
@@ -20,23 +21,43 @@ async def parse_page(redis, url: str, session) -> None:
 
     async with session.get(url, headers=header.generate(), ssl=False, allow_redirects=True,
                            proxy=random_proxy()) as resp:
+        current_netloc = urlparse(url).netloc
+        # Get the url's parent
+        try:
+            domain = await Domain.query.where(Domain.domain == f'http://{current_netloc}').gino.first()
+        except Exception as e:
+            logging.error(f'Failed at finding {current_netloc}', exc_info=True)
+
+        # Break out 403 errors for multiple tries
+        if resp.status in [403, 429]:
+            redis.hincrby("403errors", url, 1)
+            await redis.srem('domainbeingcrawled:active', current_netloc)
+            number_of_errors = await redis.hget('403errors', url)
+            number_of_errors = int(number_of_errors.decode('utf8'))
+            if number_of_errors >= 5:
+                await Page.create(
+                    page=url,
+                    errors=[],
+                    page_response=resp.status,
+                    domain=domain.id
+                )
+                await redis.srem('pagestobecrawled:queue', url)
+
+            return
         soup = BeautifulSoup(await resp.text(), "html.parser")
         visible_words = get_text(soup)
         wrong_words = await check_if_spelled_right(redis, words=visible_words)
-        current_netloc = urlparse(url).netloc
-        # try:
-        domain = await Domain.query.where(Domain.domain == f'http://{current_netloc}').gino.first()
 
-        await Page.create(
-            page=url,
-            errors=wrong_words,
-            page_response=resp.status,
-            domain=domain.id
-        )
-        # except Exception as e:
-        #     print(e)
-        # Add the local links found on the page
-        await extract_and_queue_local_links(soup=soup, root_domain=resp.host, redis=redis)
+        try:
+            await Page.create(
+                page=url,
+                errors=wrong_words,
+                page_response=resp.status,
+                domain=domain.id
+            )
+            await extract_and_queue_local_links(soup=soup, root_domain=resp.host, redis=redis)
+        except Exception as e:
+            logging.error(e)
         print(f'successfully processed {url}')
         print(f'About to pop {current_netloc}')
         await redis.srem('pagestobecrawled:queue', url)
@@ -54,14 +75,6 @@ async def get_multiple_pages(loop):
             # initiate the redis instance
             redis = await aioredis.create_redis_pool('redis://localhost', password="sOmE_sEcUrE_pAsS")
             # Push the initial pages
-            pages = await redis.smembers('pagestobecrawled:queue')
-
-            # initial_tasks = []
-            # for page in pages:
-            #     task = asyncio.create_task(parse_page(redis, page.decode("utf-8"), open_session))
-            #     initial_tasks.append(task)
-            # await asyncio.gather(*initial_tasks)
-
             # This loop primarily works because the page is only removed from the queue AFTER it has been scraped
             while await redis.scard('pagestobecrawled:queue') > 0:
                 open_spots_for_domains = 200 - await redis.scard('domainbeingcrawled:active')
@@ -93,8 +106,8 @@ async def get_multiple_pages(loop):
                             break
                     print(f'about to add {new_urls} to the queue')
                     await asyncio.gather(*new_tasks)
-                print('sleeping for 5!')
-                await asyncio.sleep(5)
+                print('sleeping for 1.5!')
+                await asyncio.sleep(1.5)
 
             redis.close()
             await redis.wait_closed()

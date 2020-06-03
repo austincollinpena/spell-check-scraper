@@ -9,5 +9,7 @@ async def load_redis_data(list_of_domains: list):
     await redis.sadd('pagestobecrawled:queue', *list_of_domains)
 
     for page in list_of_domains:
-        netloc = urlparse(page).netloc
-        await redis.sadd(f'sites:{netloc}:pages', page)
+        parsed_url = urlparse(page)
+        # Avoid re-crawling domain.com and domain.com/
+        correct_path = '/' if parsed_url.path == '' else parsed_url.path
+        await redis.sadd(f'sites:{parsed_url.netloc}:pages', correct_path)

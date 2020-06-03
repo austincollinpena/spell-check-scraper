@@ -18,9 +18,20 @@ async def extract_and_queue_local_links(soup, root_domain: str, redis):
     # TODO: why isn't this working to stop things?
     for link in valid_links:
         # STOP anything from wp-content, .png, .jpg, or others
+        parsed_url = urlparse(link)
+        correct_path = '/' if parsed_url.path == '' else parsed_url.path
+        # handle relative links
+        if link.startswith("/"):
+            link = f'http://{root_domain}{link}'
         if urlparse(link).netloc == root_domain \
-                and not await redis.sismember(f'sites:{root_domain}:pages', link) \
+                and not await redis.sismember(f'sites:{root_domain}:pages', correct_path) \
                 and not prog.match(link):
-            await redis.sadd(f'sites:{root_domain}:pages', link)
+            # Only add the path to the set on the domain to avoid any http/www/https mixups!
+            await redis.sadd(f'sites:{root_domain}:pages', correct_path)
             # Add the domain to the queue
             await redis.sadd('pagestobecrawled:queue', link)
+        # If there are more than 1000 links to a site, stop scraping
+        active_links = await redis.smembers(f'sites:{root_domain}:pages')
+        active_links = int(active_links.decode('utf8'))
+        if active_links >= 1000:
+            await redis.sdiffstore('pagestobecrawled:queue', 'pagestobecrawled:queue', f'sites:{root_domain}:pages')
