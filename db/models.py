@@ -7,6 +7,7 @@ class Domain(gino_db.Model):
 
     id = gino_db.Column(gino_db.Integer, primary_key=True)
     domain = gino_db.Column(gino_db.String, unique=True, nullable=False)
+    is_scraped = gino_db.Column(gino_db.Boolean)
 
     def __repr__(self):
         return self.domain

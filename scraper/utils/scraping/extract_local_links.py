@@ -31,7 +31,7 @@ async def extract_and_queue_local_links(soup, root_domain: str, redis):
             # Add the domain to the queue
             await redis.sadd('pagestobecrawled:queue', link)
         # If there are more than 1000 links to a site, stop scraping
-        active_links = await redis.smembers(f'sites:{root_domain}:pages')
-        active_links = int(active_links.decode('utf8'))
+        active_links = await redis.scard(f'sites:{root_domain}:pages')
+        active_links = int(active_links)
         if active_links >= 1000:
             await redis.sdiffstore('pagestobecrawled:queue', 'pagestobecrawled:queue', f'sites:{root_domain}:pages')

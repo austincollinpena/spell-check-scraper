@@ -25,18 +25,5 @@ async def main(loop):
 
 
 if __name__ == "__main__":
-    # logging.basicConfig(level=logging.WARNING, filename='scraper/app.log', filemode='w',
-    #                     format='%(name)s - %(levelname)s - %(message)s')
-    # logging.getLogger('sqlalchemy').setLevel(logging.ERROR)
-    # logging.getLogger('gino').setLevel(logging.ERROR)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(loop))
-
-    # loop = asyncio.get_event_loop()
-    # print('about to init the db')
-    # loop.run_until_complete(init_db())
-    # print('about to load data')
-    # loop.run_until_complete(load_data())
-    # list_of_domains = loop.run_until_complete(get_list_of_domains())
-    # loop.run_until_complete(load_redis_data(list_of_domains))
-    # loop.run_until_complete(get_multiple_pages(loop))

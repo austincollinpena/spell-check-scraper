@@ -62,6 +62,7 @@ async def parse_page(redis, url: str, session) -> None:
         print(f'About to pop {current_netloc}')
         await redis.srem('pagestobecrawled:queue', url)
         await redis.srem('domainbeingcrawled:active', current_netloc)
+        print('popped!')
 
 
 # Controller function contains the tcp_session
@@ -69,45 +70,47 @@ async def get_multiple_pages(loop):
     # Auto close the loop at the end
     # with closing(asyncio.get_event_loop()) as loop:
     # timeout = aiohttp.ClientTimeout(total=60)
-    async with gino_db.with_bind(config.DB_DSN, echo=True) as engine:
-        async with aiohttp.ClientSession(loop=loop) as open_session:
-            # handle aiohttp.client_exceptions.ServerDisconnectedError
-            # initiate the redis instance
-            redis = await aioredis.create_redis_pool('redis://localhost', password="sOmE_sEcUrE_pAsS")
-            # Push the initial pages
-            # This loop primarily works because the page is only removed from the queue AFTER it has been scraped
-            while await redis.scard('pagestobecrawled:queue') > 0:
-                open_spots_for_domains = 200 - await redis.scard('domainbeingcrawled:active')
 
-                if open_spots_for_domains <= 200:
-                    if await redis.scard('pagestobecrawled:queue') == 0:
-                        break
-                    # loop through this up to 200 times
-                    new_tasks = []
-                    new_urls = []
-                    # Get a set of random pages
-                    rand_pages = await redis.srandmember('pagestobecrawled:queue', open_spots_for_domains)
-                    # We've got 200 url's
-                    for rand_page in rand_pages:
-                        rand_page_netloc = urlparse(rand_page).netloc
-                        # If the page exists in the active queue, don't add it
-                        if await redis.sismember("domainbeingcrawled:active", rand_page_netloc):
-                            continue
-                        # The domain is ready to be crawled
-                        # Add it to the domainbeingcrawled:active set
-                        await redis.sadd('domainbeingcrawled:active', rand_page_netloc)
-                        # add it to the loop
-                        task = asyncio.create_task(parse_page(redis, rand_page.decode("utf-8"), open_session))
-                        new_tasks.append(task)
-                        new_urls.append(rand_page)
-                        # If we're just topping off from 190 to 200 tasks, we should break this loop
-                        if len(new_tasks) == open_spots_for_domains:
-                            print('Breaking the loop TODO: test this')
-                            break
-                    print(f'about to add {new_urls} to the queue')
-                    await asyncio.gather(*new_tasks)
-                print('sleeping for 1.5!')
-                await asyncio.sleep(1.5)
+    async with aiohttp.ClientSession(loop=loop, connector=aiohttp.TCPConnector(keepalive_timeout=10, limit=50,
+                                                                               verify_ssl=False)) as open_session:
+        # handle aiohttp.client_exceptions.ServerDisconnectedError
+        # initiate the redis instance
+        redis = await aioredis.create_redis_pool('redis://localhost', password="sOmE_sEcUrE_pAsS")
+        # Push the initial pages
+        # This loop primarily works because the page is only removed from the queue AFTER it has been scraped
+        while await redis.scard('pagestobecrawled:queue') > 0:
+            open_spots_for_domains = 200 - await redis.scard('domainbeingcrawled:active')
 
-            redis.close()
-            await redis.wait_closed()
+            if open_spots_for_domains <= 200:
+                # TODO: NO
+                if await redis.scard('pagestobecrawled:queue') == 0:
+                    break
+                # loop through this up to 200 times
+                new_tasks = []
+                new_urls = []
+                # Get a set of random pages
+                rand_pages = await redis.srandmember('pagestobecrawled:queue', open_spots_for_domains)
+                # We've got 200 url's
+                for rand_page in rand_pages:
+                    rand_page_netloc = urlparse(rand_page).netloc
+                    # If the page exists in the active queue, don't add it
+                    if await redis.sismember("domainbeingcrawled:active", rand_page_netloc):
+                        continue
+                    # The domain is ready to be crawled
+                    # Add it to the domainbeingcrawled:active set
+                    await redis.sadd('domainbeingcrawled:active', rand_page_netloc)
+                    # add it to the loop
+                    task = asyncio.create_task(parse_page(redis, rand_page.decode("utf-8"), open_session))
+                    new_tasks.append(task)
+                    new_urls.append(rand_page)
+                    # If we're just topping off from 190 to 200 tasks, we should break this loop
+                    if len(new_tasks) == open_spots_for_domains:
+                        print('Breaking the loop TODO: test this')
+                        continue
+                print(f'about to add {new_urls} to the queue')
+                await asyncio.gather(*new_tasks)
+            print('sleeping for 1.5!')
+            await asyncio.sleep(1.5)
+
+        redis.close()
+        await redis.wait_closed()
