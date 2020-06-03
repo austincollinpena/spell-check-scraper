@@ -3,7 +3,7 @@ from db import db
 import asyncio
 import csv
 from more_itertools import chunked
-from db.models.models import Domain
+from db.models import Domain
 
 
 

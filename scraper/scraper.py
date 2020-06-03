@@ -5,10 +5,10 @@ from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
 # Module Imports
-from scraper.utils.scraping.get_text import get_text
-from scraper.utils.scraping.extract_local_links import extract_and_queue_local_links
-from scraper.utils.scraping.check_if_spelled_right import check_if_spelled_right
-from db.models.models import Domain, Page
+from utils.scraping.get_text import get_text
+from utils.scraping.extract_local_links import extract_and_queue_local_links
+from utils.scraping.check_if_spelled_right import check_if_spelled_right
+from db.models import Domain, Page
 
 
 async def parse_page(redis, url: str, session) -> None:  # TODO: Proxy!
@@ -29,6 +29,8 @@ async def parse_page(redis, url: str, session) -> None:  # TODO: Proxy!
             print(e)
         # Add the local links found on the page
         await extract_and_queue_local_links(soup=soup, root_domain=resp.host, redis=redis)
+        # TODO: Pop from queue AND :active queue here
+        await redis.srem('pagestobecrawled:queue', )
 
 
 # Controller function contains the tcp_session
@@ -41,10 +43,8 @@ async def get_multiple_pages(loop):
         # initiate the redis instance
         redis = await aioredis.create_redis_pool('redis://localhost', password="sOmE_sEcUrE_pAsS")
 
-        # TODO: Add all of the pagestobecrawled to the sites:{root_domain}:pages so they don't get re-added
-        # TODO: change pagestobecrawled:queue to a set everywhere
         # TODO: Add spelling errors to the db
-        # TODO: Start with tests
+        # This loop primarily works because the page is only removed from the queue AFTER it has been scraped
         while await redis.scard('pagestobecrawled:queue') > 0:
             open_spots_for_domains = 200 - redis.scard('domainbeingcrawled:active')
             while open_spots_for_domains < 200:
@@ -56,7 +56,7 @@ async def get_multiple_pages(loop):
                 rand_page_netloc = urlparse(rand_page).netloc
                 # If the page exists in the active queue, don't add it
                 if await redis.sismember("domainbeingcrawled:active", rand_page_netloc):
-                    break
+                    continue
                 # The domain is ready to be crawled
                 # Remove it from the pagestobecrawled:queue
                 await redis.srem('pagestobecrawled:queue', rand_page)
@@ -66,5 +66,6 @@ async def get_multiple_pages(loop):
                 loop.create_task(parse_page(redis, rand_page.decode("utf-8"), open_session))
             # Don't just keep running this loop for no reason, 5 seconds should be plenty to re add new tasks
             await asyncio.sleep(5)
+
         redis.close()
         await redis.wait_closed()

@@ -1,0 +1,7 @@
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=spellcheck
+DB_PASSWORD=imagoddamnspellcheckingmaster
+DB_DATABASE=spellchecktable
+DB_DRIVER=asyncpg
+MIGRATION_URL=postgresql://spellcheck:imagoddamnspellcheckingmaster@localhost:5432/spellchecktable

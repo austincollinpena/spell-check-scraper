@@ -1,5 +1,8 @@
 from sqlalchemy.engine.url import URL, make_url  # For converting the DB info to a valid URL
-from decouple import config  # For auto searching for a .env file
+from decouple import AutoConfig  # For auto searching for a .env file
+from os import getcwd, path
+
+config = AutoConfig(search_path=path.join(getcwd(), ".env"))
 
 MIGRATION_URL = config("MIGRATION_URL", default="You forgot the migration url")
 DB_DRIVER = config("DB_DRIVER", default="asyncpg")
