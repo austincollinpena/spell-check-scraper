@@ -1,0 +1,34 @@
+# https://kb.objectrocket.com/redis/run-redis-with-docker-compose-1055
+# Enter with docker exec -it redis_redis_1 sh
+# Then redis-cli -a sOmE_sEcUrE_pAsS
+
+version: "3.2"
+services:
+  redis:
+    image: "redis:alpine"
+    command: redis-server --requirepass sOmE_sEcUrE_pAsS
+    ports:
+      - "6379:6379"
+    depends_on:
+      - helper
+    environment:
+      - REDIS_REPLICATION_MODE=master
+    sysctls:
+      net.core.somaxconn: '511'
+
+    networks:
+      node_net:
+        ipv4_address: 172.28.1.4
+
+  helper:
+    image: alpine
+    command: sh -c "echo never > /sys/kernel/mm/transparent_hugepage/enabled"
+    privileged: true
+
+# networking for the Redis container
+networks:
+  node_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
