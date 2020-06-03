@@ -1,23 +1,23 @@
 # Many to one https://python-gino.readthedocs.io/en/v0.8.5/loaders.html#many-to-one-relationship
-from db import db
+from db import gino_db
 
 
-class Domain(db.Model):
+class Domain(gino_db.Model):
     __tablename__ = "domains"
 
-    id = db.Column(db.Integer, primary_key=True)
-    domain = db.Column(db.String, unique=True, nullable=False)
+    id = gino_db.Column(gino_db.Integer, primary_key=True)
+    domain = gino_db.Column(gino_db.String, unique=True, nullable=False)
 
     def __repr__(self):
         return self.domain
 
 
-class Page(db.Model):
+class Page(gino_db.Model):
     __tablename__ = "pages"
 
-    id = db.Column(db.Integer, primary_key=True)
-    page = db.Column(db.String, nullable=False)
-    errors = db.Column(db.ARRAY(db.String))
-    likely_errors = db.Column(db.ARRAY(db.String))
-    page_response = db.Column(db.Integer)
-    domain = db.Column(db.Integer, db.ForeignKey('domains.id'))
+    id = gino_db.Column(gino_db.Integer, primary_key=True)
+    page = gino_db.Column(gino_db.String, nullable=False)
+    errors = gino_db.Column(gino_db.ARRAY(gino_db.String))
+    likely_errors = gino_db.Column(gino_db.ARRAY(gino_db.String))
+    page_response = gino_db.Column(gino_db.Integer)
+    domain = gino_db.Column(gino_db.Integer, gino_db.ForeignKey('domains.id'))

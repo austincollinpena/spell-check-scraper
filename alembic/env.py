@@ -24,7 +24,7 @@ fileConfig(config.config_file_name)
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from db import db as gino_db
+from db import gino_db as gino_db
 
 target_metadata = gino_db
 
