@@ -6,6 +6,7 @@ from os import getcwd, path
 
 async def load_data(override=False):
     redis = await aioredis.create_redis_pool('redis://localhost', password="sOmE_sEcUrE_pAsS")
+    await redis.flushall()
     values = await redis.scard('dict:all')
 
     if values < 1000000 or override:

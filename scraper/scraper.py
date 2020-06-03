@@ -37,7 +37,6 @@ async def parse_page(redis, url: str, session) -> None:
         #     print(e)
         # Add the local links found on the page
         await extract_and_queue_local_links(soup=soup, root_domain=resp.host, redis=redis)
-        # TODO: Pop from queue AND :active queue here
         print(f'successfully processed {url}')
         print(f'About to pop {current_netloc}')
         await redis.srem('pagestobecrawled:queue', url)
@@ -56,38 +55,45 @@ async def get_multiple_pages(loop):
             redis = await aioredis.create_redis_pool('redis://localhost', password="sOmE_sEcUrE_pAsS")
             # Push the initial pages
             pages = await redis.smembers('pagestobecrawled:queue')
-            initial_tasks = []
-            for page in pages:
-                task = asyncio.create_task(parse_page(redis, page.decode("utf-8"), open_session))
-                initial_tasks.append(task)
-            await asyncio.gather(*initial_tasks)
+
+            # initial_tasks = []
+            # for page in pages:
+            #     task = asyncio.create_task(parse_page(redis, page.decode("utf-8"), open_session))
+            #     initial_tasks.append(task)
+            # await asyncio.gather(*initial_tasks)
 
             # This loop primarily works because the page is only removed from the queue AFTER it has been scraped
             while await redis.scard('pagestobecrawled:queue') > 0:
                 open_spots_for_domains = 200 - await redis.scard('domainbeingcrawled:active')
-                # TODO: This loop seems to get stuck
+
                 if open_spots_for_domains <= 200:
-                    # TODO: Add the number of tasks to get to 200
-                    print('fewer open spots')
                     if await redis.scard('pagestobecrawled:queue') == 0:
                         break
-                    # Get the next value
-                    rand_page = await redis.srandmember('pagestobecrawled:queue')
-                    # get the netloc of the page
-                    rand_page_netloc = urlparse(rand_page).netloc
-                    # If the page exists in the active queue, don't add it
-                    if await redis.sismember("domainbeingcrawled:active", rand_page_netloc):
-                        await asyncio.sleep(5)
-                        continue
-                    # The domain is ready to be crawled
-                    # Add it to the domainbeingcrawled:active set
-                    await redis.sadd('domainbeingcrawled:active', rand_page)
-                    # add it to the loop
-                    # loop.create_task(parse_page(redis, rand_page.decode("utf-8"), open_session))
-                    task = asyncio.create_task(parse_page(redis, rand_page.decode("utf-8"), open_session))
-                    await asyncio.gather(task)
-
-                # Don't just keep running this loop for no reason, 5 seconds should be plenty to re add new tasks
+                    # loop through this up to 200 times
+                    new_tasks = []
+                    new_urls = []
+                    # Get a set of random pages
+                    rand_pages = await redis.srandmember('pagestobecrawled:queue', open_spots_for_domains)
+                    # We've got 200 url's
+                    for rand_page in rand_pages:
+                        rand_page_netloc = urlparse(rand_page).netloc
+                        # If the page exists in the active queue, don't add it
+                        if await redis.sismember("domainbeingcrawled:active", rand_page_netloc):
+                            continue
+                        # The domain is ready to be crawled
+                        # Add it to the domainbeingcrawled:active set
+                        await redis.sadd('domainbeingcrawled:active', rand_page_netloc)
+                        # add it to the loop
+                        task = asyncio.create_task(parse_page(redis, rand_page.decode("utf-8"), open_session))
+                        new_tasks.append(task)
+                        new_urls.append(rand_page)
+                        # If we're just topping off from 190 to 200 tasks, we should break this loop
+                        if len(new_tasks) == open_spots_for_domains:
+                            print('Breaking the loop TODO: test this')
+                            break
+                    print(f'about to add {new_urls} to the queue')
+                    await asyncio.gather(*new_tasks)
+                print('sleeping for 5!')
                 await asyncio.sleep(5)
 
             redis.close()

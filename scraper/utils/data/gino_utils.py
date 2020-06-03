@@ -4,7 +4,7 @@ from scraper import config
 
 
 async def init_db():
-    engine = await gino_db.set_bind(config.DB_DSN)
+    engine = await gino_db.set_bind(config.DB_DSN, echo=False)
     domain = await Domain.query.where(Domain.domain == 'http://equipomedia.com').gino.first()
     domain
 

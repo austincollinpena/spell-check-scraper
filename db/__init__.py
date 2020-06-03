@@ -7,8 +7,10 @@ import asyncio
 
 gino_db = Gino()
 
+
 async def main():
     await gino_db.set_bind(config.DB_DSN)
+
 
 asyncio.get_event_loop().run_until_complete(main())
 

@@ -10,5 +10,4 @@ async def load_redis_data(list_of_domains: list):
 
     for page in list_of_domains:
         netloc = urlparse(page).netloc
-        await redis.sadd('domainbeingcrawled:active', netloc)
         await redis.sadd(f'sites:{netloc}:pages', page)
